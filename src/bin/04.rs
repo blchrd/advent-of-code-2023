@@ -12,9 +12,14 @@ fn get_cards(input: &str) -> Vec<Card> {
     for line in input.lines() {
         if line != "" {
             let card = Card{
-                card_index: line.replace("  ", " ").split(':').collect::<Vec<&str>>()[0].replace("Card ", "").trim().parse().unwrap(),
-                first_number_list: line.replace("  ", " ").split(':').collect::<Vec<&str>>()[1].split('|').collect::<Vec<&str>>()[0].trim().split(' ').collect::<Vec<&str>>().into_iter().map(|s| s.trim().parse().unwrap()).collect(),
-                second_number_list: line.replace("  ", " ").split(':').collect::<Vec<&str>>()[1].split('|').collect::<Vec<&str>>()[1].trim().split(' ').collect::<Vec<&str>>().into_iter().map(|s| s.trim().parse().unwrap()).collect(),
+                card_index: line.replace("  ", " ").split(':').collect::<Vec<&str>>()[0]
+                            .replace("Card ", "").trim().parse().unwrap(),
+                first_number_list: line.replace("  ", " ").split(':').collect::<Vec<&str>>()[1]
+                            .split('|').collect::<Vec<&str>>()[0].trim().split(' ').collect::<Vec<&str>>()
+                            .into_iter().map(|s| s.trim().parse().unwrap()).collect(),
+                second_number_list: line.replace("  ", " ").split(':').collect::<Vec<&str>>()[1]
+                            .split('|').collect::<Vec<&str>>()[1].trim().split(' ').collect::<Vec<&str>>()
+                            .into_iter().map(|s| s.trim().parse().unwrap()).collect(),
             };
 
             cards.push(card);
