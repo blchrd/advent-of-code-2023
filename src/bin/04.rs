@@ -34,18 +34,14 @@ pub fn part_one(input: &str) -> Option<u32> {
     let mut card_pile_score: u32 = 0;
 
     for card in cards {
-        let mut nb_matching_number: i32 = 0;
+        let mut card_score = 0;
         for winning_number in card.first_number_list {
             if card.second_number_list.contains(&winning_number) {
-                nb_matching_number += 1;
-            }
-        }
-
-        let mut card_score = 0;
-        if nb_matching_number > 0 {
-            card_score = 1;
-            for _ in 1..nb_matching_number {
-                card_score *= 2;
+                if card_score == 0 {
+                    card_score = 1;
+                } else {
+                    card_score *= 2;
+                }
             }
         }
 
