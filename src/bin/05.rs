@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{cmp, ops::Range, collections::HashMap};
 
 advent_of_code::solution!(5);
 
@@ -63,7 +63,7 @@ fn get_seeds_range(input: &str) -> Vec<Range<u64>> {
 
     let mut i = 0;
     while i < seeds.len() {
-        seeds_range.push(seeds[i]..seeds[i + 1]);
+        seeds_range.push(seeds[i]..seeds[i] + seeds[i + 1] - 1);
         i += 2;
     }
 
@@ -86,12 +86,10 @@ fn get_map(input: &str, start_line: &str) -> Vec<Map> {
             let source_range_start: u64 = map_part[1].trim().parse().unwrap();
             let range_length: u64 = map_part[2].trim().parse().unwrap();
 
-            maps.push(
-                Map {
-                    source: source_range_start..source_range_start+range_length,
-                    destination: destination_range_start..destination_range_start+range_length,
-                }
-            );
+            maps.push(Map {
+                source: source_range_start..source_range_start + range_length,
+                destination: destination_range_start..destination_range_start + range_length,
+            });
         }
     }
 
@@ -102,11 +100,8 @@ fn get_value_from_map(source_value: u64, maps: Vec<Map>) -> u64 {
     let mut destination_value = source_value;
 
     for map in maps {
-        if map.source.start <= source_value
-            && source_value <= map.source.end
-        {
-            destination_value =
-                map.destination.start + (source_value - map.source.start);
+        if map.source.start <= source_value && source_value <= map.source.end {
+            destination_value = map.destination.start + (source_value - map.source.start);
             break;
         }
     }
@@ -126,45 +121,91 @@ fn get_location(almanac: Almanac, seed: u64) -> u64 {
     location
 }
 
-fn get_ranges(source_ranges: Vec<Range<u64>>, maps: Vec<Map>) -> Vec<Range<u64>> {
+fn merging_overlapping_range_vector(mut ranges: Vec<Range<u64>>) -> Vec<Range<u64>> {
+    // Merging overlapping ranges
+    let mut new_ranges = Vec::<Range<u64>>::new();
+    ranges.sort_by(|a, b| a.start.cmp(&b.start));
+    for range in ranges.clone() {
+        if new_ranges.len() == 0 {
+            new_ranges.push(range);
+        } else if (range.start >= new_ranges.last().unwrap().start
+            && range.start <= new_ranges.last().unwrap().end)
+            || (range.end >= new_ranges.last().unwrap().start
+                && range.end <= new_ranges.last().unwrap().end)
+        {
+            let new_range = cmp::min(new_ranges.last().unwrap().start, range.start)
+                ..cmp::max(new_ranges.last().unwrap().end, range.end);
+            new_ranges.pop();
+            new_ranges.push(new_range);
+        } else {
+            new_ranges.push(range);
+        }
+    }
+
+    new_ranges
+}
+
+fn get_ranges(mut source_ranges: Vec<Range<u64>>, mut maps: Vec<Map>) -> Vec<Range<u64>> {
     let mut ranges = Vec::<Range<u64>>::new();
+    source_ranges.sort_by(|a, b| a.start.cmp(&b.start));
+    maps.sort_by(|a, b| a.source.start.cmp(&b.source.start));
 
-    for map in maps {
-        for source_range in &source_ranges {
-            if (source_range.start < map.source.start && source_range.end < map.source.start) || (source_range.start > map.source.end && source_range.end > map.source.end) {
-                ranges.push(source_range.start..source_range.end);
-            } else if source_range.start < map.source.start && source_range.end > map.source.end {
-                ranges.push(source_range.start..map.source.start);
-                ranges.push(map.destination.start..map.destination.end);
-                ranges.push(map.source.end..map.source.end);
-            } else if source_range.start > map.source.start && source_range.end < map.source.end {
-                let range_start = map.destination.start + (source_range.start - map.source.start);
-                let range_end = map.destination.start + (source_range.end - map.source.start);
+    for source_range in &source_ranges {
+        for map in maps.clone() {
+            let range_start: u64;
+            let range_end: u64;
+            if source_range.end > map.source.start && source_range.start < map.source.end {
+                if source_range.start < map.source.start {
+                    ranges.push(source_range.start..map.source.start - 1);
+                }
 
-                ranges.push(range_start..range_end);
-            } else if source_range.start > map.source.start && source_range.end > map.source.end {
-                ranges.push(map.destination.start + (source_range.start - map.source.start)..map.destination.end);
-                ranges.push(map.source.end..map.source.end);
-            } else if source_range.start < map.source.start && source_range.end < map.source.end {
-                ranges.push(source_range.start..map.source.start);
-                ranges.push(map.destination.start..map.destination.end);
+                if source_range.start < map.source.start {
+                    range_start = map.source.start;
+                } else {
+                    range_start = source_range.start;
+                }
+
+                if source_range.end > map.source.end {
+                    range_end = map.source.end;
+                } else {
+                    range_end = source_range.end;
+                }
+
+                ranges.push(
+                    get_value_from_map(range_start, vec![map.clone()])
+                        ..get_value_from_map(range_end, vec![map.clone()]),
+                );
+                if source_range.end > map.source.end {
+                    ranges.push(map.source.end + 1..source_range.end)
+                }
             }
         }
     }
 
-    ranges
+    if ranges.is_empty() {
+        ranges.append(&mut source_ranges);
+    }
+
+    merging_overlapping_range_vector(ranges)
 }
 
 fn get_min_location_for_seed(almanac: Almanac, seeds: Vec<Range<u64>>) -> u64 {
     let mut min_location: Option<u64> = None;
 
     let soil = get_ranges(seeds, almanac.clone().seed_to_soil);
+    dbg!(&soil);
     let fertilizer = get_ranges(soil, almanac.clone().soil_to_fertilizer);
+    dbg!(&fertilizer);
     let water = get_ranges(fertilizer, almanac.clone().fertilizer_to_water);
+    dbg!(&water);
     let light = get_ranges(water, almanac.clone().water_to_light);
+    dbg!(&light);
     let temperature = get_ranges(light, almanac.clone().light_to_temperature);
+    dbg!(&temperature);
     let humidity = get_ranges(temperature, almanac.clone().temperature_to_humidity);
+    dbg!(&humidity);
     let location = get_ranges(humidity, almanac.clone().humidity_to_location);
+    dbg!(&location);
 
     let location_bound = location.into_iter().min_by(|a, b| a.start.cmp(&b.start));
     if location_bound.is_some() {
@@ -214,7 +255,9 @@ pub fn part_two(input: &str) -> Option<u64> {
 
     for seed in &almanac.seeds_range {
         seed_index += 1;
-        println!("{} / {}", seed_index, almanac.seeds_range.clone().len());
+        if seed_index == 2 {
+            println!("{} / {}", seed_index, almanac.seeds_range.clone().len());
+        }
 
         let location = get_min_location_for_seed(almanac.clone(), vec![seed.clone()]);
 
